@@ -1,6 +1,7 @@
 import socket,threading,random
+from json import loads,dumps
 
-ip = "127.0.0.1"
+port = eval(input("Enter port: "))
 users = []
 userid = 0
 greetings = (
@@ -67,6 +68,12 @@ def addtext(stdscr,y,x):
     stdscr.addstr(y,x,"Server successfully hosted")
     stdscr.refresh()
 
+def greet(connection):
+    server_dict: dict = {}
+    server_dict["type"] = "announcement"
+    server_dict["msg"] = connection.username + " joined in! " + random.choice(greetings)
+    return server_dict
+
 def broadcast(message):
 
     print(message)
@@ -80,32 +87,43 @@ def broadcast(message):
 def handle_client(cli):
     while True:
         try:
-            msgraw = cli.conn.recv(1024).decode()
-            msg = cli.username + ": " + msgraw
+            msg_dict = loads(cli.conn.recv(1024).decode())
+
+            server_dict:dict = {}
+
         except:
             continue
         
-        if msgraw.startswith("!"):
-            if msgraw.startswith("!changeusername"):
+        if msg_dict["type"] == "command":
+
+            if msg_dict["msg"].startswith("!changeusername"):    #Changes username of client
+
                 old = cli.username
-                cli.username = msgraw[len("!changeusername "):].strip()
-                broadcast(old + " changed their username to " + cli.username)
-                continue
+                cli.username = msg_dict["msg"].lstrip("!changeusername").strip()
 
-            elif msgraw.strip() == "!wave":
-                broadcast(" ")
-                broadcast("   " + cli.username + " waves")
-                broadcast(" ")
-                continue
+                server_dict["type"] = "announcement"
+                server_dict["msg"] = old + " changed their username to " + cli.username
 
-        broadcast(msg)
+            elif msg_dict["msg"] == "!wave":
+
+                server_dict["type"] = "announcement"
+                broadcast(dumps({"type":"announcement","msg":""}))
+                server_dict["msg"] =  cli.username + " waves" 
+                broadcast(dumps({"type":"announcement","msg":""}))
+
+        
+        elif msg_dict["type"] == "text":
+            server_dict["type"] = "text"
+            server_dict["username"] = cli.username
+            server_dict["msg"] = msg_dict["msg"]
+
+        broadcast(dumps(server_dict))
 
 
 
 
 
 s = socket.socket()
-port = 12345
 
 
 try:
@@ -121,7 +139,7 @@ while True:
     userid += 1
     c = client(conn,addr)
     users.append(c)
-    broadcast(c.username + " joined in! " + random.choice(greetings))
+    broadcast(dumps(greet(c)))
  
     client_t = threading.Thread(target=handle_client, args=(c, )) 
     client_t.start()
