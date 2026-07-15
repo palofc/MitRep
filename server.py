@@ -76,7 +76,9 @@ def greet(connection):
 
 def broadcast(message):
 
-    print(message)
+    msg_dict = loads(message)
+
+    print(msg_dict.get("msg"))
     for user in users:
             try:
                 user.conn.send(message.encode())

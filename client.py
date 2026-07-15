@@ -1,4 +1,4 @@
-from curses import wrapper,echo,noecho,KEY_BACKSPACE,A_BOLD,A_UNDERLINE,KEY_UP,KEY_DOWN,KEY_MOUSE,getmouse,BUTTON4_PRESSED,BUTTON5_PRESSED,mousemask
+from curses import wrapper,echo,noecho,KEY_BACKSPACE,A_BOLD,A_UNDERLINE,KEY_UP,KEY_DOWN,curs_set,KEY_RESIZE,resize_term
 from queue import Queue
 import threading,socket,os
 from json import dumps,loads
@@ -15,23 +15,27 @@ history = []
 def setup(stdscr):
     os.write(1, b"\x1b[2J")
     noecho()
+    curs_set(0)
     stdscr.keypad(True)
     stdscr.timeout(20)
     stdscr.refresh()
 
 
 def newmessage(stdscr,message):
-
+    stdscr.clear()
     global history
-    stdscr.clear()      # Clears the terminal to redraw all the messages
     stdscr.nodelay(True)    
     
     if message != "":
         history.append(message)     # Adds json message to a list containing all messages that can fit in the window
         height, width = stdscr.getmaxyx()
 
-        if len(history) > height - 2:
-            bounded = history[len(history) - idx - height + 2 ::1] 
+        visible = height - 2
+        start = max(0, len(history) - visible - idx)
+        end = start + visible
+
+        if len(history) > visible:
+            bounded = history[start:end] 
 
         else:
             bounded = history
@@ -41,7 +45,7 @@ def newmessage(stdscr,message):
             msg_dict = loads(bounded[text])     # Loads all data from json to respective variables
 
             if msg_dict["type"] == "announcement":
-                   stdscr.addstr(text,0,msg_dict["msg"])
+                   stdscr.addstr(text,0,msg_dict["msg"],A_BOLD)
 
             else:
                  username = msg_dict["username"]
@@ -49,15 +53,41 @@ def newmessage(stdscr,message):
                  stdscr.addstr(text,0,username + ": ",A_BOLD)    # Draws username as bold        
                  stdscr.addstr(msg)   #Draws the message
 
-
         stdscr.move(height-1,14)
+
+
+def draw_messages(stdscr):
+    height, width = stdscr.getmaxyx()
+    visible = height - 2
+    start = max(0, len(history) - visible - idx)
+    end = start + visible
+
+    if len(history) > visible:
+        bounded = history[start:end] 
+
+    else:
+        bounded = history
+
+    for text in range(len(bounded)):    # Traverses through history where text is its index
+        
+        msg_dict = loads(bounded[text])     # Loads all data from json to respective variables
+
+        if msg_dict["type"] == "announcement":
+            stdscr.addstr(text,0,msg_dict["msg"],A_BOLD)
+
+        else:
+            username = msg_dict["username"]
+            msg = msg_dict["msg"]
+            stdscr.addstr(text,0,username + ": ",A_BOLD)    # Draws username as bold        
+            stdscr.addstr(msg)   #Draws the message
+
+    stdscr.move(height-1,14)
 
 
 def getinput(stdscr):
     global word,history,idx
     key = stdscr.getch()
     height, width = stdscr.getmaxyx()
-    mousemask(BUTTON4_PRESSED | BUTTON5_PRESSED)
 
     if key in (127,8,KEY_BACKSPACE):    #Checks if key is backspace
         word = word[:-1]
@@ -65,6 +95,7 @@ def getinput(stdscr):
     elif key in (10,13):    #Checks if key is enter
         if word == "!clear":
             history = []
+            idx = 0
             stdscr.clear()
                         
         else:
@@ -92,13 +123,18 @@ def getinput(stdscr):
         idx -= 1
         if idx < 0:
             idx = 0
+            
+    if key == KEY_RESIZE:
+        draw_messages(stdscr)
 
-
+    max_scroll = max(0, len(history) - (height - 2))
+    idx = min(idx, max_scroll)
 
     height, width = stdscr.getmaxyx()
     stdscr.move(height-1,0)
     stdscr.clrtoeol()
-    stdscr.addstr(height-1,0,"Type message: " + word)
+    stdscr.addstr(height-1,0,"Type message: ",A_BOLD) 
+    stdscr.addstr(word)
 
 def recieve_message():
     while True:
@@ -112,6 +148,7 @@ def main(stdscr):
     while True:
         while not messages.empty():
             newmessage(stdscr,messages.get())
+        draw_messages(stdscr)
         getinput(stdscr)
         stdscr.refresh()
 
