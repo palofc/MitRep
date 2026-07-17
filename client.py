@@ -11,6 +11,7 @@ idx = 0
 text = ""
 word = ""
 history = []
+refreshed = False
 
 def setup(stdscr):
     os.write(1, b"\x1b[2J")
@@ -57,6 +58,9 @@ def newmessage(stdscr,message):
 
 
 def draw_messages(stdscr):
+    global refreshed
+    refreshed = True
+    stdscr.clear()
     height, width = stdscr.getmaxyx()
     visible = height - 2
     start = max(0, len(history) - visible - idx)
@@ -81,8 +85,10 @@ def draw_messages(stdscr):
             stdscr.addstr(text,0,username + ": ",A_BOLD)    # Draws username as bold        
             stdscr.addstr(msg)   #Draws the message
 
-    stdscr.move(height-1,14)
-
+    stdscr.move(height-1,0)
+    stdscr.clrtoeol()
+    stdscr.addstr(height-1,0,"Type message: ",A_BOLD) 
+    stdscr.addstr(word)
 
 def getinput(stdscr):
     global word,history,idx
@@ -123,18 +129,14 @@ def getinput(stdscr):
         idx -= 1
         if idx < 0:
             idx = 0
-            
-    if key == KEY_RESIZE:
-        draw_messages(stdscr)
 
     max_scroll = max(0, len(history) - (height - 2))
     idx = min(idx, max_scroll)
 
-    height, width = stdscr.getmaxyx()
-    stdscr.move(height-1,0)
-    stdscr.clrtoeol()
-    stdscr.addstr(height-1,0,"Type message: ",A_BOLD) 
-    stdscr.addstr(word)
+    if key == KEY_RESIZE:
+        draw_messages(stdscr)
+
+    
 
 def recieve_message():
     while True:
@@ -146,10 +148,12 @@ def main(stdscr):
     setup(stdscr)
 
     while True:
+        refreshed = False
         while not messages.empty():
             newmessage(stdscr,messages.get())
-        draw_messages(stdscr)
         getinput(stdscr)
+        if not refreshed:
+            draw_messages(stdscr)
         stdscr.refresh()
 
 
